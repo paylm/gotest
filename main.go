@@ -69,6 +69,7 @@ func proxyAll(conn net.Conn, b []byte, n int) {
 		log(err)
 		return
 	}
+	defer client.Close()
 	log(addr)
 	if method == "CONNECT" {
 		fmt.Fprint(client, "HTTP/1.1 200 Connection established\r\n")
