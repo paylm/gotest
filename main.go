@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -41,31 +42,75 @@ func handleConnection(conn net.Conn) {
 		}
 		Log(conn.RemoteAddr().String(), "receive data length:", n)
 		if n > 1 {
-			Log(conn.RemoteAddr().String(), "receive data:", buffer[:n])
-			Log(conn.RemoteAddr().String(), "receive data string:", string(buffer[:n]))
+			//Log(conn.RemoteAddr().String(), "receive data:", buffer[:n])
+			//Log(conn.RemoteAddr().String(), "receive data string:", string(buffer[:n]))
 			msg := string(buffer[:n])
 			repmsg := strings.ToUpper(msg)
 			rebytemsg := []byte(repmsg)
-			log(rebytemsg)
-			addr, method := pairse(buffer)
+			//log(rebytemsg)
 
-			//获得了请求的host和port，就开始拨号吧
-			client, err := net.Dial("tcp", addr)
-			if err != nil {
-				log(err)
-				return
-			}
-			if method == "CONNECT" {
-				fmt.Fprint(client, "HTTP/1.1 200 Connection established\r\n")
+			if buffer[0] == 0x05 {
+				//只处理Socket5协议
+				socket5Proxy(conn, buffer, n)
 			} else {
-				client.Write(buffer[:n])
+				//支持默认连接
+				proxyAll(conn, buffer, n)
 			}
-			go io.Copy(conn, client)
-			io.Copy(client, conn)
-
 		}
 
 	}
+}
+
+/**
+
+ */
+func proxyAll(conn net.Conn, b []byte, n int) {
+	addr, method := pairse(b)
+
+	//获得了请求的host和port，就开始拨号吧
+	client, err := net.Dial("tcp", addr)
+	if err != nil {
+		log(err)
+		return
+	}
+	log(addr)
+	if method == "CONNECT" {
+		fmt.Fprint(client, "HTTP/1.1 200 Connection established\r\n")
+	} else {
+		client.Write(b[:n])
+	}
+	go io.Copy(conn, client)
+	io.Copy(client, conn)
+}
+
+/***
+只处理Socket5协议
+*/
+func socket5Proxy(client net.Conn, b []byte, n int) {
+	//客户端回应：Socket服务端不需要验证方式
+	client.Write([]byte{0x05, 0x00})
+	n, err := client.Read(b[:])
+	var host, port string
+	switch b[3] {
+	case 0x01: //IP V4
+		host = net.IPv4(b[4], b[5], b[6], b[7]).String()
+	case 0x03: //域名
+		host = string(b[5 : n-2]) //b[4]表示域名的长度
+	case 0x04: //IP V6
+		host = net.IP{b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15], b[16], b[17], b[18], b[19]}.String()
+	}
+	port = strconv.Itoa(int(b[n-2])<<8 | int(b[n-1]))
+
+	server, err := net.Dial("tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		log(err)
+		return
+	}
+	defer server.Close()
+	client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //响应客户端连接成功
+	//进行转发
+	go io.Copy(server, client)
+	io.Copy(client, server)
 }
 
 func pairse(b []byte) (string, string) {
