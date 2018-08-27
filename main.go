@@ -44,11 +44,7 @@ func handleConnection(conn net.Conn) {
 		if n > 1 {
 			//Log(conn.RemoteAddr().String(), "receive data:", buffer[:n])
 			//Log(conn.RemoteAddr().String(), "receive data string:", string(buffer[:n]))
-			msg := string(buffer[:n])
-			repmsg := strings.ToUpper(msg)
-			rebytemsg := []byte(repmsg)
 			//log(rebytemsg)
-
 			if buffer[0] == 0x05 {
 				//只处理Socket5协议
 				socket5Proxy(conn, buffer, n)
