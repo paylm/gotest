@@ -59,17 +59,23 @@ func (t *tsCbd) docking(b []byte, rtids string) bool {
 
 	for _, v := range t.TsMaps {
 		if v.status == 0 && v.ctype == 0 {
+			if v.ids == rtids {
+				//只能与其它连接进行绑定
+				continue
+			}
 			s := "ack:" + v.ids + ":" + v.sec
-			if strings.Compare(s, string(b[:len(b)])) == 0 {
-				log("dockingAndBind success :", s, string(b[:len(b)]))
+			if strings.Compare(s, string(b[:14])) == 0 {
+				log("dockingAndBind success :", s, string(b[:14]))
 				v.pskConn = rtids
 				v.status = 1
+				t.TsMaps[rtids].pskConn = v.ids
+				t.TsMaps[rtids].status = 1
 				return true
 			}
-			log("docking fail -->> ", s, string(b[:len(b)]))
+			log("docking fail -->> ", s, string(b[:14]))
 		}
 	}
-	log("docking --->>> ", string(b[:len(b)]))
+	log("docking --->>> ", string(b[:14]))
 	return false
 }
 
@@ -90,6 +96,7 @@ func (td *tsCbd) register(conn net.Conn) string {
 	t.status = 0
 	t.sec = string(krand(3, 3))
 	t.ids = ids
+	t.conn = conn
 
 	td.TsMaps[t.ids] = t
 
@@ -119,8 +126,10 @@ func (td *tsCbd) runloop(conn net.Conn, ids string) {
 				log("dockingAndBind ok")
 				myMeta := td.TsMaps[ids]
 				rtMeta := td.TsMaps[myMeta.pskConn]
-				go io.Coy(rtMeta.conn, myMeta.conn)
+				go io.Copy(rtMeta.conn, myMeta.conn)
 				io.Copy(myMeta.conn, rtMeta.conn)
+				myMeta.status = 1
+				rtMeta.status = 1
 				stat = 1
 			}
 
