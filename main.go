@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"strings"
 )
@@ -54,21 +55,21 @@ func (td *tsCbd) startServer() {
 	}
 }
 
-func (t *tsCbd) docking(b []byte, n int, rtids string) bool {
+func (t *tsCbd) docking(b []byte, rtids string) bool {
 
 	for _, v := range t.TsMaps {
 		if v.status == 0 && v.ctype == 0 {
 			s := "ack:" + v.ids + ":" + v.sec
-			if strings.Compare(s, string(b[:n])) == 0 {
-				log("dockingAndBind success :", s, string(b[:n]))
+			if strings.Compare(s, string(b[:len(b)])) == 0 {
+				log("dockingAndBind success :", s, string(b[:len(b)]))
 				v.pskConn = rtids
 				v.status = 1
 				return true
 			}
-			log("docking fail -->> ", s, string(b[:n]))
+			log("docking fail -->> ", s, string(b[:len(b)]))
 		}
 	}
-	log("docking --->>> ", string(b[:n]))
+	log("docking --->>> ", string(b[:len(b)]))
 	return false
 }
 
@@ -114,8 +115,12 @@ func (td *tsCbd) runloop(conn net.Conn, ids string) {
 		log(conn.RemoteAddr().String(), ":", ids, ":", string(buffer[:n]))
 
 		if stat == 0 {
-			if ok := td.docking(buffer, n, ids); ok {
+			if ok := td.docking(buffer, ids); ok {
 				log("dockingAndBind ok")
+				myMeta := td.TsMaps[ids]
+				rtMeta := td.TsMaps[myMeta.pskConn]
+				go io.Coy(rtMeta.conn, myMeta.conn)
+				io.Copy(myMeta.conn, rtMeta.conn)
 				stat = 1
 			}
 
@@ -139,7 +144,10 @@ func (td *tsCbd) unbind(ids string) {
 
 func (td *tsCbd) shutdown() {
 	for _, v := range td.TsMaps {
-		log("ookss")
+		err := v.conn.Close()
+		log(err)
+		log("shutdown :", v.ids)
+		delete(td.TsMaps, v.ids)
 	}
 }
 
