@@ -97,9 +97,7 @@ func (td *tsCbd) register(conn net.Conn) string {
 	t.sec = string(krand(3, 3))
 	t.ids = ids
 	t.conn = conn
-
 	td.TsMaps[t.ids] = t
-
 	log("register new conn :", t.ids, " , sec :", t.sec)
 
 	return ids
@@ -112,7 +110,7 @@ func (td *tsCbd) runloop(conn net.Conn, ids string) {
 	}()
 
 	buffer := make([]byte, 1024)
-	stat := 0
+	myMeta := td.TsMaps[ids]
 	for {
 		n, err := conn.Read(buffer)
 		if err != nil {
@@ -121,17 +119,18 @@ func (td *tsCbd) runloop(conn net.Conn, ids string) {
 		}
 		log(conn.RemoteAddr().String(), ":", ids, ":", string(buffer[:n]))
 
-		if stat == 0 {
+		if myMeta.status == 0 {
 			if ok := td.docking(buffer, ids); ok {
 				log("dockingAndBind ok")
-				myMeta := td.TsMaps[ids]
+
 				rtMeta := td.TsMaps[myMeta.pskConn]
-				go io.Copy(rtMeta.conn, myMeta.conn)
-				io.Copy(myMeta.conn, rtMeta.conn)
-				myMeta.status = 1
-				rtMeta.status = 1
-				stat = 1
+				connectMeta(myMeta, rtMeta)
 			}
+
+		} else {
+
+			rtMeta := td.TsMaps[myMeta.pskConn]
+			connectMeta(myMeta, rtMeta)
 
 		}
 
@@ -158,6 +157,30 @@ func (td *tsCbd) shutdown() {
 		log("shutdown :", v.ids)
 		delete(td.TsMaps, v.ids)
 	}
+}
+
+/***
+ 连接两个单元
+**/
+func connectMeta(fromMeta, toMeta *transMeta) {
+
+	defer func() {
+		//处理关闭连接时的painc 处理
+		if err := recover(); err != nil {
+			log(err)
+			fromMeta.status = 0
+			fromMeta.ctype = 0
+			fromMeta.pskConn = ""
+		}
+	}()
+
+	go io.Copy(toMeta.conn, fromMeta.conn)
+	io.Copy(fromMeta.conn, toMeta.conn)
+	fromMeta.status = 1
+	toMeta.status = 1
+	fromMeta.ctype = 1
+	toMeta.ctype = 1
+	toMeta.pskConn = fromMeta.ids
 }
 
 func main() {
