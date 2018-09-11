@@ -26,8 +26,9 @@ type transMeta struct {
 	ids        string //连接ID
 	sec        string //连接密钥
 	conn       net.Conn
-	status     int    //连接状态,0 空闲，1 连接中
-	pskConn    string //对端连接的连接名
+	status     int       //连接状态,0 空闲，1 连接中
+	pskConn    string    //对端连接的连接名
+	quit       chan bool //关闭信号
 }
 
 //连接处理中心处理单元
@@ -55,9 +56,9 @@ func (td *tsCbd) startServer() {
 	}
 }
 
-func (t *tsCbd) docking(b []byte, rtids string) bool {
+func (td *tsCbd) docking(b []byte, rtids string) bool {
 
-	for _, v := range t.TsMaps {
+	for _, v := range td.TsMaps {
 		if v.status == 0 && v.ctype == 0 {
 			if v.ids == rtids {
 				//只能与其它连接进行绑定
@@ -68,8 +69,8 @@ func (t *tsCbd) docking(b []byte, rtids string) bool {
 				log("dockingAndBind success :", s, string(b[:14]))
 				v.pskConn = rtids
 				v.status = 1
-				t.TsMaps[rtids].pskConn = v.ids
-				t.TsMaps[rtids].status = 1
+				td.TsMaps[rtids].pskConn = v.ids
+				td.TsMaps[rtids].status = 1
 				return true
 			}
 			log("docking fail -->> ", s, string(b[:14]))
@@ -97,6 +98,7 @@ func (td *tsCbd) register(conn net.Conn) string {
 	t.sec = string(krand(3, 3))
 	t.ids = ids
 	t.conn = conn
+	t.quit = make(chan bool)
 	td.TsMaps[t.ids] = t
 	log("register new conn :", t.ids, " , sec :", t.sec)
 
@@ -111,6 +113,7 @@ func (td *tsCbd) runloop(conn net.Conn, ids string) {
 
 	buffer := make([]byte, 1024)
 	myMeta := td.TsMaps[ids]
+
 	for {
 		n, err := conn.Read(buffer)
 		if err != nil {
@@ -122,19 +125,15 @@ func (td *tsCbd) runloop(conn net.Conn, ids string) {
 		if myMeta.status == 0 {
 			if ok := td.docking(buffer, ids); ok {
 				log("dockingAndBind ok")
-
 				rtMeta := td.TsMaps[myMeta.pskConn]
 				connectMeta(myMeta, rtMeta)
 			}
-
 		} else {
-
 			rtMeta := td.TsMaps[myMeta.pskConn]
 			connectMeta(myMeta, rtMeta)
-
 		}
-
 	}
+
 }
 
 func (td *tsCbd) unbind(ids string) {
@@ -168,12 +167,16 @@ func connectMeta(fromMeta, toMeta *transMeta) {
 		//处理关闭连接时的painc 处理
 		if err := recover(); err != nil {
 			log(err)
-			fromMeta.status = 0
-			fromMeta.ctype = 0
-			fromMeta.pskConn = ""
-			//  toMeta.status = 0
-			//	toMeta.ctype = 0
-			//	toMeta.pskConn = ""
+			if fromMeta != nil {
+				fromMeta.status = 0
+				fromMeta.ctype = 0
+				fromMeta.pskConn = ""
+			}
+			if toMeta != nil {
+				toMeta.status = 0
+				toMeta.ctype = 0
+				toMeta.pskConn = ""
+			}
 		}
 	}()
 
