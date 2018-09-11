@@ -171,6 +171,9 @@ func connectMeta(fromMeta, toMeta *transMeta) {
 			fromMeta.status = 0
 			fromMeta.ctype = 0
 			fromMeta.pskConn = ""
+			//  toMeta.status = 0
+			//	toMeta.ctype = 0
+			//	toMeta.pskConn = ""
 		}
 	}()
 
@@ -184,7 +187,7 @@ func connectMeta(fromMeta, toMeta *transMeta) {
 }
 
 func main() {
-	fmt.Println("vim-go")
+	fmt.Println("run go pass server success")
 
 	var tt tcptransfer = &tsCbd{addr: ":6666", TsMaps: make(map[string]*transMeta)}
 	defer func() {
