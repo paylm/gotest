@@ -19,7 +19,7 @@ type tcptransfer interface {
 	shutdown()
 }
 
-type transMeta struct {
+type tsChannel struct {
 	remoteAddr string
 	remotePort int
 	ctype      int    //连接类型 0 受连接端， 1 主动连接端
@@ -33,7 +33,7 @@ type transMeta struct {
 
 //连接处理中心处理单元
 type tsCbd struct {
-	TsMaps map[string]*transMeta
+	TsMaps map[string]*tsChannel
 	addr   string
 	msg    chan int
 }
@@ -43,7 +43,10 @@ func (td *tsCbd) startServer() {
 	if err != nil {
 		log("listen " + td.addr + " fail !!!!")
 	}
-	defer nl.Close()
+	defer func() {
+		err := nl.Close()
+		log(err)
+	}()
 	log("start server at :", td.addr)
 	for {
 		conn, er := nl.Accept()
@@ -90,8 +93,8 @@ func (td *tsCbd) register(conn net.Conn) string {
 	if _, ok := td.TsMaps[ids]; ok {
 		ids = string(krand(6, 3)) //如果已有则重新生成
 	}
-	var t *transMeta
-	t = &transMeta{}
+	var t *tsChannel
+	t = &tsChannel{}
 	t.remoteAddr = conn.RemoteAddr().String()
 	t.ctype = 0
 	t.status = 0
@@ -108,11 +111,12 @@ func (td *tsCbd) register(conn net.Conn) string {
 func (td *tsCbd) runloop(conn net.Conn, ids string) {
 	defer func() {
 		td.unbind(ids)
-		conn.Close()
+		err := conn.Close()
+		log("funloop close :", ids, err)
 	}()
 
 	buffer := make([]byte, 1024)
-	myMeta := td.TsMaps[ids]
+	myChannel := td.TsMaps[ids]
 
 	for {
 		n, err := conn.Read(buffer)
@@ -122,15 +126,15 @@ func (td *tsCbd) runloop(conn net.Conn, ids string) {
 		}
 		log(conn.RemoteAddr().String(), ":", ids, ":", string(buffer[:n]))
 
-		if myMeta.status == 0 {
+		if myChannel.status == 0 {
 			if ok := td.docking(buffer, ids); ok {
 				log("dockingAndBind ok")
-				rtMeta := td.TsMaps[myMeta.pskConn]
-				connectMeta(myMeta, rtMeta)
+				rtChannel := td.TsMaps[myChannel.pskConn]
+				connectChannel(myChannel, rtChannel)
 			}
 		} else {
-			rtMeta := td.TsMaps[myMeta.pskConn]
-			connectMeta(myMeta, rtMeta)
+			rtChannel := td.TsMaps[myChannel.pskConn]
+			connectChannel(myChannel, rtChannel)
 		}
 	}
 
@@ -161,38 +165,38 @@ func (td *tsCbd) shutdown() {
 /***
  连接两个单元
 **/
-func connectMeta(fromMeta, toMeta *transMeta) {
+func connectChannel(fromChannel, toChannel *tsChannel) {
 
 	defer func() {
 		//处理关闭连接时的painc 处理
 		if err := recover(); err != nil {
 			log(err)
-			if fromMeta != nil {
-				fromMeta.status = 0
-				fromMeta.ctype = 0
-				fromMeta.pskConn = ""
+			if fromChannel != nil {
+				fromChannel.status = 0
+				fromChannel.ctype = 0
+				fromChannel.pskConn = ""
 			}
-			if toMeta != nil {
-				toMeta.status = 0
-				toMeta.ctype = 0
-				toMeta.pskConn = ""
+			if toChannel != nil {
+				toChannel.status = 0
+				toChannel.ctype = 0
+				toChannel.pskConn = ""
 			}
 		}
 	}()
 
-	go io.Copy(toMeta.conn, fromMeta.conn)
-	io.Copy(fromMeta.conn, toMeta.conn)
-	fromMeta.status = 1
-	toMeta.status = 1
-	fromMeta.ctype = 1
-	toMeta.ctype = 1
-	toMeta.pskConn = fromMeta.ids
+	go io.Copy(toChannel.conn, fromChannel.conn)
+	io.Copy(fromChannel.conn, toChannel.conn)
+	fromChannel.status = 1
+	toChannel.status = 1
+	fromChannel.ctype = 1
+	toChannel.ctype = 1
+	toChannel.pskConn = fromChannel.ids
 }
 
 func main() {
 	fmt.Println("run go pass server success")
 
-	var tt tcptransfer = &tsCbd{addr: ":6666", TsMaps: make(map[string]*transMeta)}
+	var tt tcptransfer = &tsCbd{addr: ":6666", TsMaps: make(map[string]*tsChannel)}
 	defer func() {
 		tt.shutdown()
 	}()
