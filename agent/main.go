@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os/exec"
+	"strings"
 )
 
 type worker interface {
@@ -35,7 +36,8 @@ func (ag *agent) exeCmd(commad string, msg chan bool) {
 	defer func() {
 		msg <- false
 	}()
-	cmds := exec.Command(commad)
+	realcmd := strings.Split(strings.Replace(commad, "\r\n", "", -1), " ")
+	cmds := exec.Command(realcmd[0], realcmd[1:]...)
 	stdout, err := cmds.StdoutPipe()
 	if err != nil {
 		log.Println("cmd err :", err)
@@ -80,6 +82,7 @@ func (ag *agent) shutdown() {
 }
 
 func main() {
+
 	fmt.Println("go pass agent start")
 	ag1 := &agent{remoteAddr: "127.0.0.1:6666", retry: 10}
 	init := ag1.startServer()
