@@ -30,13 +30,11 @@ func handleConnection(conn net.Conn, toport string, quit chan bool) {
 			goto Loop
 		}
 		fmt.Println(string(buffer[:n]))
-		if targetconn == nil {
-			targetconn, er = net.Dial("tcp", toport)
-			if er != nil {
-				fmt.Println("handleConnection", toport, er)
-				conn.Write([]byte("proxyPort conn fail !!!"))
-				continue
-			}
+		targetconn, er = net.Dial("tcp", toport)
+		if er != nil {
+			fmt.Println("handleConnection", toport, er)
+			conn.Write([]byte("proxyPort conn fail !!!"))
+			continue
 		}
 		n, err = targetconn.Write(buffer[:n])
 		if err != nil {
@@ -96,15 +94,22 @@ func startProxy(remoteAddr string, targetPort string, exitMsg chan bool) {
 	*/
 	var conn net.Conn
 	var err error
+	retry, delay := 1, 5 //失败连接次数>retry ，增加重试间隔
 	for {
 		if conn == nil {
 			conn, err = net.Dial("tcp", remoteAddr)
 			if err != nil {
 				fmt.Println(err)
-				fmt.Println("try to connect 5s later")
-				time.Sleep(time.Duration(5) * time.Second)
+				fmt.Printf("try to connect %d s later , fail conn count : %d \n", delay, retry)
+				time.Sleep(time.Duration(delay) * time.Second)
+				if retry > 100 {
+					delay = 30
+				}
+				retry++
 				continue
 			}
+			retry = 1
+			delay = 5
 		}
 		go handleConnection(conn, targetPort, quitConn)
 		<-quitConn
