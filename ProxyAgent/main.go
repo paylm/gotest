@@ -29,12 +29,14 @@ func handleConnection(conn net.Conn, toport string, quit chan bool) {
 			fmt.Println("handleConnection read err:", conn.RemoteAddr().String(), err)
 			goto Loop
 		}
-		fmt.Println(string(buffer[:n]))
-		targetconn, er = net.Dial("tcp", toport)
-		if er != nil {
-			fmt.Println("handleConnection", toport, er)
-			conn.Write([]byte("proxyPort conn fail !!!"))
-			continue
+		//fmt.Println(string(buffer[:n]))
+		if targetconn == nil {
+			targetconn, er = net.Dial("tcp", toport)
+			if er != nil {
+				fmt.Println("handleConnection", toport, er)
+				conn.Write([]byte("proxyPort conn fail !!!"))
+				continue
+			}
 		}
 		n, err = targetconn.Write(buffer[:n])
 		if err != nil {
@@ -48,8 +50,9 @@ func handleConnection(conn net.Conn, toport string, quit chan bool) {
 		//go proxyRequest(targetconn, conn)
 		//conn.SetReadDeadline(time.Time{}.Add(time.Second * 3))
 		go io.Copy(targetconn, conn)
-		go io.Copy(conn, targetconn)
+		io.Copy(conn, targetconn)
 		//go proxyRequest(conn, targetconn)
+		fmt.Println("after io.Copy")
 	}
 Loop:
 	fmt.Println("handleConnection conn reset")
@@ -79,18 +82,19 @@ func proxyRequest(r net.Conn, w net.Conn) {
 func startProxy(remoteAddr string, targetPort string, exitMsg chan bool) {
 
 	quitConn := make(chan bool)
-	/*ln, err := net.Listen("tcp", remoteAddr)
-	if err != nil {
-		// handle error
-	}
-	for {
-		conn, err := ln.Accept()
+	/*
+		ln, err := net.Listen("tcp", remoteAddr)
 		if err != nil {
 			// handle error
-			fmt.Println(err)
 		}
-		go handleConnection(conn, targetPort, quitConn)
-	}
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				// handle error
+				fmt.Println(err)
+			}
+			go handleConnection(conn, targetPort, quitConn)
+		}
 	*/
 	var conn net.Conn
 	var err error
