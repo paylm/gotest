@@ -97,10 +97,11 @@ Loop:
 			break Loop
 		}
 		fmt.Println(targetConn.RemoteAddr().String(), "read => ", string(buffer[:n]))
-		go io.Copy(remoteConn, targetConn)
+
+		remoteConn.Write(buffer[:n])
 		//io.Copy(targetConn, remoteConn)
 		go io.Copy(targetConn, remoteConn)
-		remoteConn.Write(buffer)
+		io.Copy(remoteConn, targetConn)
 	}
 }
 
