@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+func logger(v ...interface{}) {
+	logger(v...)
+}
+
 func handleConnection(conn net.Conn, toport string, quit chan bool) {
 	var targetconn net.Conn
 	var er error
@@ -18,7 +22,7 @@ func handleConnection(conn net.Conn, toport string, quit chan bool) {
 		if targetconn != nil {
 			targetconn.Close()
 		}
-		fmt.Println("handleConnection defer close")
+		logger("handleConnection defer close")
 		quit <- true
 	}()
 	buffer := make([]byte, 1024)
@@ -26,14 +30,14 @@ func handleConnection(conn net.Conn, toport string, quit chan bool) {
 	for {
 		n, err := conn.Read(buffer)
 		if err != nil {
-			fmt.Println("handleConnection read err:", conn.RemoteAddr().String(), err)
+			logger("handleConnection read err:", conn.RemoteAddr().String(), err)
 			goto Loop
 		}
-		//fmt.Println(string(buffer[:n]))
+		//logger(string(buffer[:n]))
 		if targetconn == nil {
 			targetconn, er = net.Dial("tcp", toport)
 			if er != nil {
-				fmt.Println("handleConnection", toport, er)
+				logger("handleConnection", toport, er)
 				conn.Write([]byte("proxyPort conn fail !!!"))
 				continue
 			}
@@ -52,10 +56,10 @@ func handleConnection(conn net.Conn, toport string, quit chan bool) {
 		go io.Copy(targetconn, conn)
 		io.Copy(conn, targetconn)
 		//go proxyRequest(conn, targetconn)
-		fmt.Println("after io.Copy")
+		logger("after io.Copy")
 	}
 Loop:
-	fmt.Println("handleConnection conn reset")
+	logger("handleConnection conn reset")
 }
 
 // Forward all requests from r to w
@@ -91,7 +95,7 @@ func startProxy(remoteAddr string, targetPort string, exitMsg chan bool) {
 			conn, err := ln.Accept()
 			if err != nil {
 				// handle error
-				fmt.Println(err)
+				logger(err)
 			}
 			go handleConnection(conn, targetPort, quitConn)
 		}
@@ -103,7 +107,7 @@ func startProxy(remoteAddr string, targetPort string, exitMsg chan bool) {
 		if conn == nil {
 			conn, err = net.Dial("tcp", remoteAddr)
 			if err != nil {
-				fmt.Println(err)
+				logger(err)
 				fmt.Printf("try to connect %d s later , fail conn count : %d \n", delay, retry)
 				time.Sleep(time.Duration(delay) * time.Second)
 				if retry > 100 {
@@ -127,8 +131,8 @@ func main() {
 	targetPort := flag.String("fp", ":6060", "tcp Forward port")
 	remoteAddr := flag.String("dp", ":8080", "tcp  remote port")
 	flag.Parse()
-	fmt.Println("run server at :", *remoteAddr)
-	fmt.Println("target port", *targetPort)
+	logger("run server at :", *remoteAddr)
+	logger("target port", *targetPort)
 	quit := make(chan bool)
 	startProxy(*remoteAddr, *targetPort, quit)
 	<-quit
