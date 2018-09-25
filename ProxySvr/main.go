@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 )
 
@@ -23,16 +22,12 @@ type ProxySvr struct {
 	fwdListener net.Listener
 	sec         string
 	msg         chan bool
+	status      int // 0 空闲连接，1或更多表示连接正在连接中
 }
 
 type ProxyMng struct {
 	addr  string
 	Pxmap map[string]*ProxySvr
-}
-
-func getPort(start, end int) int {
-	rand.Int()
-	return 555
 }
 
 func newProxyListener() (net.Listener, string) {
@@ -78,15 +73,17 @@ func (pm *ProxyMng) newProxySvr(acpConn net.Conn) {
 
 }
 
-func handelProxyConn(targetConn, remoteConn net.Conn) {
+func (px *ProxySvr) handelProxyConn(targetConn, remoteConn net.Conn) {
 
 	defer func() {
 		if targetConn != nil {
 			targetConn.Close()
 		}
-		if remoteConn != nil {
-			remoteConn.Close()
-		}
+		//if remoteConn != nil {
+		//	remoteConn.Close()
+		//}
+		fmt.Println("handelProxyConn defer close connect")
+		px.status = 0
 	}()
 	buffer := make([]byte, 1024)
 Loop:
@@ -96,7 +93,7 @@ Loop:
 			fmt.Println("handelProxyConn err on read")
 			break Loop
 		}
-		fmt.Println(targetConn.RemoteAddr().String(), "read => ", string(buffer[:n]))
+		//fmt.Println(targetConn.RemoteAddr().String(), "read => ", string(buffer[:n]))
 
 		remoteConn.Write(buffer[:n])
 		//io.Copy(targetConn, remoteConn)
@@ -121,8 +118,14 @@ func (pm *ProxyMng) working(ps *ProxySvr) {
 		if err != nil {
 			fmt.Printf("working %s ac fail \n ", ps.fwdListener.Addr().String)
 		}
-
-		go handelProxyConn(conn, ps.acpConn)
+		if ps.status == 0 {
+			go ps.handelProxyConn(conn, ps.acpConn)
+			ps.status = 1
+		} else {
+			//已有连接
+			conn.Write([]byte("connect is busy , please try again later"))
+			conn.Close()
+		}
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 )
 
 func logger(v ...interface{}) {
-	logger(v...)
+	fmt.Println(v...)
 }
 
 func handleConnection(conn net.Conn, toport string, quit chan bool) {
@@ -54,9 +54,10 @@ func handleConnection(conn net.Conn, toport string, quit chan bool) {
 		//go proxyRequest(targetconn, conn)
 		//conn.SetReadDeadline(time.Time{}.Add(time.Second * 3))
 		go io.Copy(targetconn, conn)
-		io.Copy(conn, targetconn)
+		_, ed := io.Copy(conn, targetconn)
 		//go proxyRequest(conn, targetconn)
-		logger("after io.Copy")
+		logger("after io.Copy, error :", ed)
+		targetconn = nil
 	}
 Loop:
 	logger("handleConnection conn reset")
