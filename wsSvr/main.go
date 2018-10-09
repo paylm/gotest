@@ -130,7 +130,7 @@ func wsPage(res http.ResponseWriter, req *http.Request) {
 		gp = "default"
 	}
 	//client := &Client{id: uuid.NewV4().String(), socket: conn, send: make(chan []byte)}
-	client := &Client{id: UniqueId(), socket: conn, send: make(chan []byte), group: gp}
+	client := &Client{id: Randuuid(), socket: conn, send: make(chan []byte), group: gp}
 
 	fmt.Println(client)
 	manager.register <- client
