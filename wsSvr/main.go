@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/http"
 
@@ -108,12 +109,17 @@ func (c *Client) write() {
 }
 
 func main() {
-	fmt.Println("Starting application...")
+	addr := flag.String("addr", ":12345", "listen at addr(default :12345)")
+	flag.Parse()
+	fmt.Printf("Starting application at %s... \n", *addr)
 	go manager.start()
 	http.HandleFunc("/ws", wsPage)
 	http.HandleFunc("/", index)
 	http.HandleFunc("/allws", allws)
-	http.ListenAndServe(":12345", nil)
+	err := http.ListenAndServe(*addr, nil)
+	if err != nil {
+		fmt.Println("start fail by error :", err)
+	}
 }
 
 func wsPage(res http.ResponseWriter, req *http.Request) {
@@ -125,7 +131,7 @@ func wsPage(res http.ResponseWriter, req *http.Request) {
 	header := req.Header
 	gp := header.Get("group")
 
-	fmt.Println("rec wsPage, gp = ", gp)
+	//fmt.Println("rec wsPage, gp = ", gp)
 	if gp == "" {
 		gp = "default"
 	}
@@ -145,6 +151,7 @@ func index(res http.ResponseWriter, req *http.Request) {
 
 func allws(rs http.ResponseWriter, req *http.Request) {
 	for c, _ := range manager.clients {
-		fmt.Println(c.id)
+		fmt.Println(c.id, c.group)
+		rs.Write([]byte(fmt.Sprintf("group:%s,id:%s <br/>", c.group, c.id)))
 	}
 }

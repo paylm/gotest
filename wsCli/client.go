@@ -10,10 +10,9 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", "localhost:12345", "http service address")
-
 func main() {
 
+	addr := flag.String("addr", "localhost:12345", "http service address")
 	gp := flag.String("group", "default", "websocket group")
 	flag.Parse()
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "/ws"}
