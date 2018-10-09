@@ -17,10 +17,11 @@ type ClientManager struct {
 }
 
 type Client struct {
-	id     string
-	socket *websocket.Conn
-	send   chan []byte
-	group  string //default
+	id       string
+	socket   *websocket.Conn
+	send     chan []byte
+	group    string //default
+	nickName string
 }
 
 type Message struct {
@@ -28,6 +29,7 @@ type Message struct {
 	Recipient string `json:"recipient,omitempty"`
 	Content   string `json:"content,omitempty"`
 	//Group     string `json:"content,omitempty"`
+	NikeName string `json:"NikeName,omitempty"`
 }
 
 var manager = ClientManager{
@@ -42,13 +44,13 @@ func (manager *ClientManager) start() {
 		select {
 		case conn := <-manager.register:
 			manager.clients[conn] = true
-			jsonMessage, _ := json.Marshal(&Message{Content: fmt.Sprintf("/A new socket(%s) has connected.", conn.id)})
+			jsonMessage, _ := json.Marshal(&Message{Content: fmt.Sprintf("/A new socket(%s) has connected.", conn.id), NikeName: conn.nickName})
 			manager.send(jsonMessage, conn, conn.group)
 		case conn := <-manager.unregister:
 			if _, ok := manager.clients[conn]; ok {
 				close(conn.send)
 				delete(manager.clients, conn)
-				jsonMessage, _ := json.Marshal(&Message{Content: fmt.Sprintf("/A socket(%s) has disconnected.", conn.id)})
+				jsonMessage, _ := json.Marshal(&Message{Content: fmt.Sprintf("/A socket(%s) has disconnected.", conn.id), NikeName: conn.nickName})
 				manager.send(jsonMessage, conn, conn.group)
 			}
 		case message := <-manager.broadcast:
@@ -85,7 +87,7 @@ func (c *Client) read() {
 			c.socket.Close()
 			break
 		}
-		jsonMessage, _ := json.Marshal(&Message{Sender: c.id, Content: string(message)})
+		jsonMessage, _ := json.Marshal(&Message{Sender: c.id, Content: string(message), NikeName: c.nickName})
 		manager.broadcast <- jsonMessage
 	}
 }
@@ -135,8 +137,8 @@ func wsPage(res http.ResponseWriter, req *http.Request) {
 	if gp == "" {
 		gp = "default"
 	}
-	//client := &Client{id: uuid.NewV4().String(), socket: conn, send: make(chan []byte)}
-	client := &Client{id: Randuuid(), socket: conn, send: make(chan []byte), group: gp}
+	//client := &Client{id: Randuuid(), socket: conn, send: make(chan []byte), group: gp}
+	client := &Client{id: Randuuid(), socket: conn, send: make(chan []byte), group: gp, nickName: createName()}
 
 	fmt.Println(client)
 	manager.register <- client
