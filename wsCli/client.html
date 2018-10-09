@@ -13,6 +13,10 @@
                alert("您的浏览器支持 WebSocket!");
                
                // 打开一个 web socket
+	       var c = document.getElementById("ws");
+		   var addr = c.value; 
+		    alert(addr);
+	       ws = new WebSocket(addr);
                 
                ws.onopen = function()
                {
@@ -64,9 +68,11 @@
    <body>
    
       <div id="sse">
-         <a href="javascript:WebSocketTest()">运行 WebSocket</a>
-         <a href="javascript:stopWebSocket()">停止 WebSocket</a>
+	 <input id="ws" value="ws://127.0.0.1:12345/ws"/>     
+	 <button onclick="WebSocketTest()">连接WebSocket</button>
+	 <button onclick="stopWebSocket()">断开WebSocket</button>
       </div>
+      <br>
       <div>
 	<textarea id="msg" rows="3" cols="30">
 	</textarea>
